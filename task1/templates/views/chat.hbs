@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket</title>
+  
+   <style>
+
+.wrapper {
+    display: flex;
+ }
+
+ #user-list {
+    display: inline-block; 
+    margin: 0px;
+ }
+
+ .message-wrapper {
+    height: 400px;
+    overflow: scroll;
+    width: 400px;
+    background: grey; 
+    position: relative;
+ }
+
+ #messages {
+    position: absolute;
+    top: 0;
+    width: 100%;
+ }
+
+ .send-message {
+    position: absolute;
+    bottom: 0
+ }
+
+   </style>
+</head>
+<body>
+
+    <h1>Chat app</h1>
+    <div id="user" data-user="{{{isMatch}}}"></div>
+    <div id="current-user" style="background-color: rgb(95, 236, 170); padding: 10px; margin-left: 40px; border-bottom: 1px solid white; width: 500px;"></div>
+    <div class="wrapper">
+        <ul id="user-list">
+
+        </ul>
+        <div class="message-wrapper">
+            <div id="messages"></div>
+            <div class="send-message">
+                <input name="message" id="message"/>
+                <button onclick="sendMeassage()">Send</button>
+            </div>
+        </div>
+    </div>
+
+  <script >
+    let userList = []
+    let reciepientId = null;
+    let chatRecord = {}
+    const currentUser = document.getElementById('user').dataset.user;
+  
+    const ws = new WebSocket(`ws://127.0.0.1:3000/${currentUser}`)
+
+    ws.onopen = function(){
+        console.log("connected")
+    }
+
+    ws.onmessage = function(event){
+      const data = JSON.parse(event.data)
+      if(data.hasOwnProperty("users")){
+        userList = data.users.filter(f => f.id !== currentUser);
+        console.log("modified user list array", data.users)
+        const currentUserName = data.users.find(f => f.id === currentUser)
+        // createChatRecordlookup(data.users)
+        console.log("current user name", currentUserName)
+        document.getElementById("current-user").innerText = `Welcome ${currentUserName.firstname}`
+        creatUserListDoms(userList)
+      }
+       else if(data.action === "GET_MESSAGES") {
+         console.log("GET MESSAGES data", data)
+        data.messages.forEach(chat => {
+                let chatSpace = document.getElementById("messages")
+                 let messageEle = document.createElement("p");
+                messageEle.style = chat.hasOwnProperty("reciepient") ? "margin:2px;padding: 2px;text-align: right;vwidth: 95%;" : "margin:2px;padding: 2px;text-align: left;vwidth: 95%;"
+                messageEle.innerText = chat.Message;
+                chatSpace.appendChild(messageEle)
+      })
+       }
+      else {
+        console.log("event data", event.data)
+        let chatSpace = document.getElementById("messages")
+          let messageEle = document.createElement("p");
+          messageEle.style = data.sender == currentUser ? "margin:2px;padding: 2px;text-align: right;vwidth: 95%;" : "margin:2px;padding: 2px;text-align: left;vwidth: 95%;"
+          messageEle.innerText = data.message
+          chatSpace.appendChild(messageEle)
+      }
+
+    function creatUserListDoms(listData){
+     let userInputElement = document.getElementsByClassName("message-wrapper")[0];
+     userInputElement.style = "display: block;"
+     let userlistEle = document.getElementById("user-list");
+     userlistEle.innerHTML = ""
+     listData.forEach(element => {
+        let userElement = document.createElement("li");
+        userElement.innerText = element.firstname;
+        userlistEle.appendChild(userElement)
+        userElement.style = "list-style : none; padding : 10px; background: grey;color: white;width: 100px;border-bottom: 1px solid white;border-right: 1px solid white;"
+        userElement.addEventListener("click", () => {
+            const reciepient = userElement.innerText;
+            reciepientId = listData.find(f => f.firstname === reciepient).id
+            ws.send(JSON.stringify({action: "GET_MESSAGES" , message: "", sender: currentUser, target: reciepientId}))
+            let chatSpace = document.getElementById("messages")
+            chatSpace.innerHTML = ""
+        
+        })
+     });
+
+    }
+
+    function createChatRecordlookup(users){
+        chatRecord = users.reduce((lookup, user) => {
+           if(lookup.hasOwnProperty(user)) return lookup;
+           else lookup[user] = {record : []}
+           return lookup;
+        }, {})
+
+        console.log("chatRecord init", chatRecord)
+    }
+    }
+
+    function sendMeassage(){
+        const msg = document.getElementById("message").value;
+        ws.send(JSON.stringify({action: "SEND_MESSAGE", message: msg, sender: currentUser, target: reciepientId}))
+
+    }
+
+    </script>
+</body>
+
+</html>
